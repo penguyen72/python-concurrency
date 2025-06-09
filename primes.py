@@ -23,25 +23,37 @@ class PrimeFinder:
     def find(self):
         i = 1
         while self.running:
-            self.condition.acquire()
             while not self.is_prime(i):
                 i += 1
+                time.sleep(0.5)
 
-            self.condition.notify()
-            self.found = True
+            self.condition.acquire()
             self.prime_num = i
+            self.found = True
+            self.condition.notify()
             self.condition.release()
+
+            self.condition.acquire()
+            while self.found and self.running:
+                self.condition.wait()
+            self.condition.release()
+
             i += 1
 
     def log(self):
         while self.running:
             self.condition.acquire()
-            while not self.found and not self.prime_num:
+            while not self.found and self.running:
                 self.condition.wait()
-                print(f"Found ${self.prime_num}")
-                self.found = False
-                self.prime_num = None
             self.condition.release()
+
+            if self.found:
+                self.condition.acquire()
+                print(self.prime_num)
+                self.prime_num = None
+                self.found = False
+                self.condition.notify()
+                self.condition.release()
 
     def run(self):
         find_thread = Thread(target=self.find)
@@ -104,11 +116,15 @@ class PollingPrimeFinder:
         time.sleep(3)
         self.running = False
 
+        self.condition.acquire()
+        self.condition.notifyAll()
+        self.condition.release()
+
         find_thread.join()
         log_thread.join()
 
 
 if __name__ == "__main__":
-    pollingPrimeFinder = PollingPrimeFinder()
+    # pollingPrimeFinder = PollingPrimeFinder()
     primeFinder = PrimeFinder()
-    pollingPrimeFinder.run()
+    primeFinder.run()
